@@ -1,4 +1,3 @@
-"use strict";
 let idUser = 1;
 let idCourse = 1;
 class User {
@@ -16,13 +15,15 @@ class User {
         Name: ${this.name}
         Email: ${this.email}
         Phone: ${this.phone}
+        Purchased: ${this.purchasedCourses.join(", ") || "None"}
+        Discounts: ${this.discounts.join(", ") || "None"}
     `;
     }
-    buyCourse(course) {
-        const courseIndex = manager.courses.findIndex((c) => c.courseId == course);
+    buyCourse(courseId) {
+        const courseIndex = manager.courses.findIndex((c) => c.courseId === courseId);
         if (courseIndex >= 0) {
             manager.courses[courseIndex].students++;
-            this.purchasedCourses.push(course);
+            this.purchasedCourses.push(courseId);
             return `Mua thành công`;
         }
         return `Mua không thành công`;
@@ -46,25 +47,27 @@ class Course {
     `;
     }
     getCourse(discount) {
-        return ``;
+        let finalPrice = this.price;
+        if (discount) {
+            finalPrice = this.price - (this.price * discount) / 100;
+        }
+        return `Khóa học: ${this.courseName}, Giá sau giảm: ${finalPrice}`;
     }
 }
 class FreeCourse extends Course {
     getCertificate() {
-        console.log(`
-        Miễn phí, không có chứng chỉ.
-        Chính sách hoàn tiền: Không có chính sách hoàn tiền.
-        `);
+        console.log(`Miễn phí, không có chứng chỉ.`);
     }
-    getRefundPolicy() { }
+    getRefundPolicy() {
+        console.log(`Không có chính sách hoàn tiền.`);
+    }
 }
 class PaidCourse extends Course {
-    getCertificate() { }
+    getCertificate() {
+        console.log(`Khóa học ${this.courseName} có cấp chứng chỉ khi hoàn thành.`);
+    }
     getRefundPolicy() {
-        console.log(`
-        Phải trả phí, có cấp chứng chỉ.
-        Chính sách hoàn tiền: Hoàn lại tiền nếu như thời gian học dưới 2 giờ.
-        `);
+        console.log(`Hoàn lại tiền nếu thời gian học dưới 2 giờ.`);
     }
 }
 class CourseManager {
@@ -75,11 +78,11 @@ class CourseManager {
     }
     addCourse(type, courseName, coursePrice, courseDuration) {
         let courseValue;
-        if (type == "free") {
-            courseValue = new FreeCourse(courseName, coursePrice, courseDuration);
+        if (type === "free") {
+            courseValue = new FreeCourse(courseName, 0, courseDuration);
         }
         else {
-            courseValue = new FreeCourse(courseName, coursePrice, courseDuration);
+            courseValue = new PaidCourse(courseName, coursePrice, courseDuration);
         }
         this.courses.push(courseValue);
     }
@@ -87,66 +90,65 @@ class CourseManager {
         this.users.push(new User(name, email, phone));
     }
     createNewDiscount(discountCode, discountValue) {
-        const discountInput = {
-            code: discountCode,
-            Value: discountValue,
-        };
+        const discountInput = { code: discountCode, value: discountValue };
         this.discounts.push(discountInput);
     }
     handleBuyCourse(userId, courseId) {
-        const user = this.users.find((u) => u.id == userId);
+        const user = this.users.find((u) => u.id === userId);
         if (user) {
             return user.buyCourse(courseId);
         }
         return `Mua không thành công`;
     }
     handleRefundCourse(userId, courseId) {
-        const user = this.users.find((u) => u.id == userId);
+        const user = this.users.find((u) => u.id === userId);
         if (user) {
-            user.purchasedCourses;
+            const idx = user.purchasedCourses.indexOf(courseId);
+            if (idx >= 0) {
+                user.purchasedCourses.splice(idx, 1);
+                const course = this.courses.find((c) => c.courseId === courseId);
+                if (course)
+                    course.students--;
+                return `Hoàn tiền thành công cho khóa ${courseId}`;
+            }
         }
-        return ``;
+        return `Không tìm thấy khóa học để hoàn tiền`;
     }
     listCourses(numOfStudents) {
-        for (let v of this.courses) {
-            console.log(v);
-        }
+        this.courses
+            .filter((c) => (numOfStudents ? c.students >= numOfStudents : true))
+            .forEach((c) => console.log(c.displayCourse()));
     }
     showUserInformation(email) {
-        const userSearch = this.users.find((u) => u.email == email);
-        console.log(userSearch);
+        const userSearch = this.users.find((u) => u.email === email);
+        console.log((userSearch === null || userSearch === void 0 ? void 0 : userSearch.getDetails()) || "Không tìm thấy người dùng");
     }
     calculateTotalRevenue() {
-        const total = this.courses.reduce((t, p) => {
-            return (t = p.price);
+        return this.courses.reduce((total, course) => {
+            if (course instanceof PaidCourse) {
+                total += course.students * course.price;
+            }
+            return total;
         }, 0);
-        return total;
     }
-    giftDiscount(userId, discountCode) { }
-    getCertificate(userId) { }
-    getRefundPolicy(courseId) { }
 }
 const manager = new CourseManager();
-//1. Thêm người dùng.
+// 1. Thêm người dùng
 manager.createUser("Nguyễn Văn A", "A14441@gmail.com", "09131313144");
 manager.createUser("Nguyễn Pô", "Pô1100@gmail.com", "01134242424");
-//2. Thêm khóa học.
+// 2. Thêm khóa học
 manager.addCourse("free", "JS", 100000, 10);
 manager.addCourse("paid", "HTML/CSS", 50000, 6);
-//3. Thêm mã giảm giá.
+// 3. Thêm mã giảm giá
 manager.createNewDiscount("MUV40HANG", 10);
-//4 . Mua khóa học.
+// 4. Mua khóa học
 console.log(manager.handleBuyCourse("U2", "KH1"));
-//5. Hoàn tiền khóa học.
-console.log(manager.handleRefundCourse("U3", "KH1"));
-//6. Hiển thị danh sách khóa học (sử dụng map).
-manager.listCourses(1);
-//7. Hiển thị thông tin người dùng (sử dụng find).
+// 5. Hoàn tiền khóa học
+console.log(manager.handleRefundCourse("U2", "KH1"));
+// 6. Hiển thị danh sách khóa học
+manager.listCourses(0);
+// 7. Hiển thị thông tin người dùng
 manager.showUserInformation("Pô1100@gmail.com");
-//8. Tính tổng doanh thu từ các khóa học đã bán (sử dụng reduce).
-console.log(manager.calculateTotalRevenue());
-//9. Tặng mã giảm giá cho người dùng (sử dụng find).
-//10. Hiển thị toàn bộ chứng chỉ của người dùng (sử dụng find).
-//11. Hiển thị chính sách hoàn tiền (sử dụng find).
-//12. Thoát
+// 8. Tính tổng doanh thu
+console.log("Tổng doanh thu:", manager.calculateTotalRevenue());
 console.log("Thoát chương trình");
